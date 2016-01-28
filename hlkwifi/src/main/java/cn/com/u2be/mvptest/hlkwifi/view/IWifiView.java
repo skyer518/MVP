@@ -10,4 +10,8 @@ import java.util.List;
 public interface IWifiView {
 
     void showWifiScanResult(List<ScanResult> scanResults);
+
+    void gotoNext();
+
+    void showConnectError();
 }

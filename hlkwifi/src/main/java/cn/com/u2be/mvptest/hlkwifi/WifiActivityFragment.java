@@ -8,6 +8,7 @@ import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.Fragment;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.logging.Handler;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -72,24 +74,37 @@ public class WifiActivityFragment extends Fragment implements IWifiView, Adapter
     }
 
 
-    private void openWifiDialog(String wifiSSID) {
-        AlertDialog alertDialog = new AlertDialog.Builder(getContext())
-                .setTitle(wifiSSID)
-                .setView(new WifiConnectDialogView(getContext()))
-                .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+    private void openWifiDialog(final ScanResult wifi) {
+        final WifiConnectDialogView view = new WifiConnectDialogView(getContext());
+        final AlertDialog alertDialog = new AlertDialog.Builder(getContext())
+                .setTitle(wifi.SSID)
+                .setView(view)
+                .setPositiveButton(getString(R.string.text_connect_wifi_dialog_confirm), null)
+                .setNegativeButton(getString(R.string.text_connect_wifi_dialog_cancel), new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        Snackbar.make(listviewWifi, "which:" + which, Snackbar.LENGTH_SHORT).show();
-                    }
-                })
-                .setNegativeButton("取消", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        Snackbar.make(listviewWifi, "which:" + which, Snackbar.LENGTH_SHORT).show();
+                        dialog.cancel();
                     }
                 }).create();
 
         alertDialog.show();
+        alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                String password = view.getPassword();
+                if (TextUtils.isEmpty(password)) {
+                    Snackbar.make(v, getString(R.string.text_connect_wifi_dialog_password_error_empty), Snackbar.LENGTH_SHORT).show();
+                } else if (password.length() < 8) {
+                    Snackbar.make(v, getString(R.string.text_connect_wifi_dialog_password_error_length), Snackbar.LENGTH_SHORT).show();
+                } else {
+                    wifiPersenter.connectWifi(wifi, password);
+                    alertDialog.dismiss();
+                }
+
+
+            }
+        });
 
     }
 
@@ -101,9 +116,19 @@ public class WifiActivityFragment extends Fragment implements IWifiView, Adapter
     }
 
     @Override
+    public void gotoNext() {
+        getActivity().onBackPressed();
+    }
+
+    @Override
+    public void showConnectError() {
+        Snackbar.make(listviewWifi, getString(R.string.text_connect_wifi_error), Snackbar.LENGTH_SHORT).show();
+    }
+
+    @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         ScanResult wifi = (ScanResult) parent.getAdapter().getItem(position);
-        openWifiDialog(wifi.SSID);
+        openWifiDialog(wifi);
     }
 
     public class WifiAdapter extends BaseAdapter {

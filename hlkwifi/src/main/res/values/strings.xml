@@ -2,4 +2,12 @@
     <string name="app_name">HLKWifi</string>
     <string name="action_settings">Settings</string>
     <string name="title_activity_wifi">Wifi</string>
+
+    <string name="text_connect_wifi_error">Password is failed !</string>
+    <string name="text_connect_wifi_dialog_confirm">Connect</string>
+    <string name="text_connect_wifi_dialog_cancel">Cancel</string>
+
+    <string name="text_connect_wifi_dialog_password_error_empty">Password can not be empty !</string>
+    <string name="text_connect_wifi_dialog_password_error_length">Password length must be greater than or equal to 8 !</string>
+
 </resources>

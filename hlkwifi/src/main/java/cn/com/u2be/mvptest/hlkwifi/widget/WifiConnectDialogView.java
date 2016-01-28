@@ -41,4 +41,8 @@ public class WifiConnectDialogView extends LinearLayout implements CompoundButto
         }
     }
 
+
+    public String getPassword(){
+        return etPassword.getEditableText().toString().trim();
+    }
 }
