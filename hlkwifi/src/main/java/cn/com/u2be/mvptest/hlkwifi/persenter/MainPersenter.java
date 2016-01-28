@@ -1,5 +1,6 @@
 package cn.com.u2be.mvptest.hlkwifi.persenter;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Handler;
@@ -38,10 +39,13 @@ public class MainPersenter {
     }
 
 
-    public void addNewLED(Context context) {
+    public void addNewLED(Activity context) {
         // 扫描Wifi 连接到 灯
         Intent intent = new Intent(context, WifiActivity.class);
         context.startActivity(intent);
+/*      // 调用系统wifi
+        Intent wifiSettingsIntent = new Intent("android.settings.WIFI_SETTINGS");
+        context.startActivityForResult(wifiSettingsIntent);*/
 
 
         // 扫描Wifi 设置灯要连接的Wifi
