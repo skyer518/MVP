@@ -14,4 +14,6 @@ public interface IWifiView {
     void gotoNext();
 
     void showConnectError();
+
+    void showProgress(boolean b);
 }

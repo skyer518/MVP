@@ -6,8 +6,18 @@
     android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
     android:paddingTop="@dimen/activity_vertical_margin"
-    tools:context="cn.com.u2be.mvptest.hlkwifi.WifiActivityFragment"
+    tools:context=".WifiFragment"
     tools:showIn="@layout/activity_wifi">
+
+    <!-- Login progress -->
+    <ProgressBar
+        android:id="@+id/pb_progress"
+        style="?android:attr/progressBarStyleLarge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true"
+        android:layout_marginBottom="8dp"
+        android:visibility="gone" />
 
     <ListView
         android:id="@+id/listview_wifi"

@@ -13,9 +13,9 @@ import java.util.TimerTask;
 /**
  * Created by 明 on 2016/1/29.
  */
-public class WifiConnectManager {
+public abstract class WifiHelper {
 
-    private static final String TAG = WifiConnectManager.class.getSimpleName();
+    private static final String TAG = WifiHelper.class.getSimpleName();
 
     WifiManager wifiManager;
 
@@ -25,7 +25,7 @@ public class WifiConnectManager {
     }
 
     // 构造函数
-    public WifiConnectManager(WifiManager wifiManager) {
+    public WifiHelper(WifiManager wifiManager) {
         this.wifiManager = wifiManager;
     }
 
@@ -48,8 +48,12 @@ public class WifiConnectManager {
     }
 
     // 提供一个外部接口，传入要连接的无线网
-    public void connect(String ssid, String password, WifiCipherType type, OnWifiConnectListener listener) {
-        Thread thread = new Thread(new ConnectRunnable(ssid, password, type, listener));
+    public void connect(String ssid, String password, WifiCipherType type) {
+        WifiConfiguration wifiConfig = createWifiInfo(ssid, password, type);
+        if (wifiConfig == null) {
+            throw new RuntimeException("WifiConfig is null!");
+        }
+        Thread thread = new Thread(new ConnectRunnable(wifiConfig));
         thread.start();
     }
 
@@ -57,7 +61,8 @@ public class WifiConnectManager {
     private WifiConfiguration isExsits(String SSID) {
         List<WifiConfiguration> existingConfigs = wifiManager.getConfiguredNetworks();
         for (WifiConfiguration existingConfig : existingConfigs) {
-            if (existingConfig.SSID.equals("\"" + SSID + "\"")) {
+            Log.d(TAG, "param[SSID : " + SSID + "]  , item[SSID:" + existingConfig.SSID + "]");
+            if (existingConfig.SSID.equals(SSID)) {
                 return existingConfig;
             }
         }
@@ -72,13 +77,13 @@ public class WifiConnectManager {
         config.allowedPairwiseCiphers.clear();
         config.allowedProtocols.clear();
         config.SSID = "\"" + SSID + "\"";
-// nopass
+        // nopass
         if (Type == WifiCipherType.WIFICIPHER_NOPASS) {
             config.wepKeys[0] = "";
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
             config.wepTxKeyIndex = 0;
         }
-// wep
+        // wep
         if (Type == WifiCipherType.WIFICIPHER_WEP) {
             if (!TextUtils.isEmpty(Password)) {
                 if (isHexWepKey(Password)) {
@@ -92,7 +97,7 @@ public class WifiConnectManager {
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
             config.wepTxKeyIndex = 0;
         }
-// wpa
+        // wpa
         if (Type == WifiCipherType.WIFICIPHER_WPA) {
             config.preSharedKey = "\"" + Password + "\"";
             config.hiddenSSID = true;
@@ -100,8 +105,8 @@ public class WifiConnectManager {
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.TKIP);
             config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
             config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.TKIP);
-// 此处需要修改否则不能自动重联
-// config.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
+            // 此处需要修改否则不能自动重联
+            // config.allowedProtocols.set(WifiConfiguration.Protocol.WPA);
             config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.CCMP);
             config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.CCMP);
             config.status = WifiConfiguration.Status.ENABLED;
@@ -110,7 +115,7 @@ public class WifiConnectManager {
     }
 
     // 打开wifi功能
-    private boolean openWifi() {
+    public boolean openWifi() {
         boolean bRet = true;
         if (!wifiManager.isWifiEnabled()) {
             bRet = wifiManager.setWifiEnabled(true);
@@ -126,96 +131,88 @@ public class WifiConnectManager {
         return wifiManager.getScanResults();
     }
 
+
     class ConnectRunnable implements Runnable {
-        private String ssid;
 
-        private String password;
+        private WifiConfiguration wifiConfig;
 
-        private WifiCipherType type;
+        private Timer timer;
 
-        private OnWifiConnectListener listener;
+        public ConnectRunnable(WifiConfiguration wifiConfig) {
+            this.wifiConfig = wifiConfig;
 
-        public ConnectRunnable(String ssid, String password, WifiCipherType type, OnWifiConnectListener listener) {
-            this.ssid = ssid;
-            this.password = password;
-            this.type = type;
-            this.listener = listener;
         }
 
         @Override
         public void run() {
-
-            final WifiManager.WifiLock wifiLock = wifiManager.createWifiLock(ssid);
-            wifiLock.acquire();
-// 打开wifi
-            openWifi();
-// 开启wifi功能需要一段时间(我在手机上测试一般需要1-3秒左右)，所以要等到wifi
-// 状态变成WIFI_STATE_ENABLED的时候才能执行下面的语句
-            while (wifiManager.getWifiState() == WifiManager.WIFI_STATE_ENABLING) {
-                try {
-// 为了避免程序一直while循环，让它睡个100毫秒检测……
-                    Thread.sleep(100);
-                } catch (InterruptedException ie) {
-                }
-            }
-
-            WifiConfiguration wifiConfig = createWifiInfo(ssid, password, type);
-//
-            if (wifiConfig == null) {
-                Log.d(TAG, "wifiConfig is null!");
-                return;
-            }
-
-            final WifiConfiguration tempConfig = isExsits(ssid);
-
-            if (tempConfig != null) {
-                wifiManager.removeNetwork(tempConfig.networkId);
-            }
-
-            int netID = wifiManager.addNetwork(wifiConfig);
-            boolean enabled = wifiManager.enableNetwork(netID, true);
-            Log.d(TAG, "enableNetwork status enable=" + enabled);
-            final boolean connected = wifiManager.reconnect();
-            Log.d(TAG, "enableNetwork connected=" + connected);
-            if (connected) {
-                final Timer timer = new Timer();
-                timer.schedule(new TimerTask() {
-                    int count = 0;
-
-                    @Override
-                    public void run() {
-                        count++;
-                        int status = tempConfig.status;
-                        Log.d(TAG, "status=" + status);
-                        if (status == WifiConfiguration.Status.CURRENT) {
-                            if (listener != null) {
-                                listener.onWifiConnected(tempConfig);
-                            }
-                            wifiLock.release();
-                            timer.cancel();
-                        }
-                        if (count == 10) {
-                            if (listener != null) {
-                                listener.onWifiError(tempConfig);
-                            }
-                            wifiLock.release();
-                            timer.cancel();
-                        }
+            try {
+                // 打开wifi
+                openWifi();
+                // 开启wifi功能需要一段时间(我在手机上测试一般需要1-3秒左右)，所以要等到wifi
+                // 状态变成WIFI_STATE_ENABLED的时候才能执行下面的语句
+                while (wifiManager.getWifiState() == WifiManager.WIFI_STATE_ENABLING) {
+                    try {
+                        // 为了避免程序一直while循环，让它睡个100毫秒检测……
+                        Thread.sleep(100);
+                    } catch (InterruptedException ie) {
                     }
-                }, 100, 500);
-            } else {
-                if (listener != null) {
-                    listener.onWifiError(null);
                 }
-                wifiLock.release();
+
+                WifiConfiguration tempConfig = isExsits(wifiConfig.SSID);
+                if (tempConfig != null) {
+                    wifiManager.removeNetwork(tempConfig.networkId);
+                }
+
+                int netID = wifiManager.addNetwork(wifiConfig);
+                boolean enabled = wifiManager.enableNetwork(netID, true);
+                Log.d(TAG, "enableNetwork status enable=" + enabled);
+                wifiManager.saveConfiguration();
+
+                final boolean connected = wifiManager.reconnect();
+                Log.d(TAG, "enableNetwork connected=" + connected);
+                if (connected && enabled) {
+                    timer = new Timer();
+                    timer.schedule(connectStatusTask, 100, 500);
+                } else {
+                    throw new RuntimeException();
+                }
+            } catch (Exception e) {
+                afterConnect();
             }
         }
+
+        private TimerTask connectStatusTask = new TimerTask() {
+            int count = 0;
+
+            @Override
+            public void run() {
+                count++;
+                WifiConfiguration exsits = isExsits(wifiConfig.SSID);
+                int status = exsits.status;
+                Log.d(TAG, "status=" + status);
+                if (status == WifiConfiguration.Status.CURRENT) {
+                    onWifiConnected(exsits);
+                    timer.cancel();
+                }
+                if (count > 20) {
+                    onWifiError(exsits);
+                    timer.cancel();
+                }
+            }
+        };
+
+
+        public void afterConnect() {
+            if (timer != null)
+                timer.cancel();
+        }
+
     }
 
     private static boolean isHexWepKey(String wepKey) {
         final int len = wepKey.length();
 
-// WEP-40, WEP-104, and some vendors using 256-bit WEP (WEP-232?)
+        // WEP-40, WEP-104, and some vendors using 256-bit WEP (WEP-232?)
         if (len != 10 && len != 26 && len != 58) {
             return false;
         }
@@ -234,9 +231,8 @@ public class WifiConnectManager {
         return true;
     }
 
-    public interface OnWifiConnectListener {
-        void onWifiConnected(WifiConfiguration config);
+    public abstract void onWifiConnected(WifiConfiguration config);
 
-        void onWifiError(WifiConfiguration config);
-    }
+    public abstract void onWifiError(WifiConfiguration config);
+
 }

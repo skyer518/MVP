@@ -1,5 +1,7 @@
 package cn.com.u2be.mvptest.hlkwifi;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -14,41 +16,40 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.logging.Handler;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
+import cn.com.u2be.mvptest.hlkwifi.persenter.DevicePersenter;
 import cn.com.u2be.mvptest.hlkwifi.persenter.WifiPersenter;
-import cn.com.u2be.mvptest.hlkwifi.view.IWifiView;
+import cn.com.u2be.mvptest.hlkwifi.view.IDeviceView;
 import cn.com.u2be.mvptest.hlkwifi.widget.WifiConnectDialogView;
 
 /**
  * A placeholder fragment containing a simple view.
  */
-public class WifiActivityFragment extends Fragment implements IWifiView, AdapterView.OnItemClickListener {
+public class DeviceFragment extends Fragment implements IDeviceView, AdapterView.OnItemClickListener {
 
     @Bind(R.id.listview_wifi)
     ListView listviewWifi;
-
-    private WifiManager wifiManger;
+    @Bind(R.id.pb_progress)
+    ProgressBar pbProgress;
 
     private List<ScanResult> scanResults = null;
+
     private WifiAdapter adapter;
 
-    private WifiPersenter wifiPersenter;
+    private DevicePersenter devicePersenter;
 
-    public WifiActivityFragment() {
+    public DeviceFragment() {
     }
 
 
@@ -57,13 +58,14 @@ public class WifiActivityFragment extends Fragment implements IWifiView, Adapter
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_wifi, container, false);
         ButterKnife.bind(this, view);
-        wifiPersenter = new WifiPersenter(getActivity(), this);
+        devicePersenter = new DevicePersenter(getActivity(), this);
 
         scanResults = new ArrayList<>(0);
         adapter = (new WifiAdapter(getActivity(), scanResults));
         listviewWifi.setAdapter(adapter);
         listviewWifi.setOnItemClickListener(this);
-        wifiPersenter.scanWifi();
+        devicePersenter.scanDevice();
+        showProgress(true);
         return view;
     }
 
@@ -74,50 +76,10 @@ public class WifiActivityFragment extends Fragment implements IWifiView, Adapter
     }
 
 
-    private void openWifiDialog(final ScanResult wifi) {
-        final WifiConnectDialogView view = new WifiConnectDialogView(getContext());
-        final AlertDialog alertDialog = new AlertDialog.Builder(getContext())
-                .setTitle(wifi.SSID)
-                .setView(view)
-                .setPositiveButton(getString(R.string.text_connect_wifi_dialog_confirm), null)
-                .setNegativeButton(getString(R.string.text_connect_wifi_dialog_cancel), new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
-                        dialog.cancel();
-                    }
-                }).create();
-
-        alertDialog.show();
-        alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                String password = view.getPassword();
-                if (TextUtils.isEmpty(password)) {
-                    Snackbar.make(v, getString(R.string.text_connect_wifi_dialog_password_error_empty), Snackbar.LENGTH_SHORT).show();
-                } else if (password.length() < 8) {
-                    Snackbar.make(v, getString(R.string.text_connect_wifi_dialog_password_error_length), Snackbar.LENGTH_SHORT).show();
-                } else {
-                    wifiPersenter.connectWifi(wifi, password);
-                    alertDialog.dismiss();
-                }
-
-
-            }
-        });
-
-    }
-
-
-    @Override
-    public void showWifiScanResult(List<ScanResult> scanResults) {
-        adapter.setScanResult(scanResults);
-        adapter.notifyDataSetChanged();
-    }
-
     @Override
     public void gotoNext() {
-        getActivity().onBackPressed();
+        WifiFragment wifiFragment = new WifiFragment();
+        getActivity().getSupportFragmentManager().beginTransaction().replace(R.id.fragment, wifiFragment).hide(this).commit();
     }
 
     @Override
@@ -126,9 +88,39 @@ public class WifiActivityFragment extends Fragment implements IWifiView, Adapter
     }
 
     @Override
+    public void showProgress(final boolean show) {
+        int shortAnimTime = getResources().getInteger(android.R.integer.config_shortAnimTime);
+
+        listviewWifi.setVisibility(show ? View.GONE : View.VISIBLE);
+        listviewWifi.animate().setDuration(shortAnimTime).alpha(
+                show ? 0 : 1).setListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                listviewWifi.setVisibility(show ? View.GONE : View.VISIBLE);
+            }
+        });
+
+        pbProgress.setVisibility(show ? View.VISIBLE : View.GONE);
+        pbProgress.animate().setDuration(shortAnimTime).alpha(
+                show ? 1 : 0).setListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                pbProgress.setVisibility(show ? View.VISIBLE : View.GONE);
+            }
+        });
+    }
+
+    @Override
     public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
         ScanResult wifi = (ScanResult) parent.getAdapter().getItem(position);
-        openWifiDialog(wifi);
+        devicePersenter.connectDevice(wifi);
+    }
+
+    @Override
+    public void showDevices(List<ScanResult> scanResults) {
+        showProgress(false);
+        adapter.setScanResult(scanResults);
+        adapter.notifyDataSetChanged();
     }
 
     public class WifiAdapter extends BaseAdapter {
@@ -182,7 +174,7 @@ public class WifiActivityFragment extends Fragment implements IWifiView, Adapter
 
             ScanResult item = (ScanResult) getItem(position);
 
-            int signalLevel = wifiManger.calculateSignalLevel(item.level, 5);
+            int signalLevel = WifiManager.calculateSignalLevel(item.level, 5);
             switch (signalLevel) {
                 case 1:
                     holder.wifiStronger.setImageResource(R.mipmap.wifi_1);

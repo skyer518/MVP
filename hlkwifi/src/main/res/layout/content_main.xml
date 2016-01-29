@@ -18,9 +18,11 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="测试UDP组播以获取HLKWifi地址" />
+
     <Button
         android:id="@+id/btn_add_device"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="添加设备"/>
+        android:text="添加设备" />
+
 </LinearLayout>
